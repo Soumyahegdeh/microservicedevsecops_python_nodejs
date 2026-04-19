@@ -1,13 +1,28 @@
-name: Container Security Template
+name: Dast Security Template
 on:
   workflow_call:
     inputs:
+      image_name:
+        description: "Docker image (without tag OR full image with tag)"
+        required: true
+        type: string
+
+      app_port:
+        description: "Application port exposed by container"
+        required: true
+        type: number
       service_path:
         required: true
         type: string
       service_type:
         required: true
         type: string
+
+      health_path:
+        description: "Health check endpoint"
+        required: false
+        type: string
+        default: /health
     secrets:
       DOCKER_USERNAME:
         required: true
@@ -42,7 +57,7 @@ jobs:
          file: ${{ inputs.service_path }}/app.dockerfile
          push: true
          tags: |
-            soumyahe/apigateway:${{ github.run_number }}
+            ${{ inputs.image_name }}:${{ github.run_number }}
           #  soumyahe/apigateway:latest
          cache-from: type=gha
          cache-to: type=gha,mode=max
@@ -51,14 +66,17 @@ jobs:
       - name: Scan Docker Image (Trivy)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: soumyahe/apigateway:${{ github.run_number }}
+          image-ref: ${{ inputs.image_name }}:${{ github.run_number }}
           format: sarif
           output: trivy.sarif
           severity: HIGH,CRITICAL
 
       - name: Smoke Test Container
         run: |
-           docker run -d -p 3000:3000 --name test soumyahe/apigateway:${{ github.run_number }}
+           docker run -d \
+            -p ${{ inputs.app_port }}:${{ inputs.app_port }} \
+            --name test \
+            ${{ inputs.image_name }}:${{ github.run_number }}
            sleep 10
 
            echo "==== CONTAINER LOGS ===="
