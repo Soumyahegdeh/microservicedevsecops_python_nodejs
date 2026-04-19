@@ -33,6 +33,12 @@ app.get('/api/randomquote',async (req, res) => {
     
 })
 
+
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
+
+
 // Handle any unknown route
 app.use((req, res) => {
     res.status(404).json({
