@@ -34,12 +34,12 @@ app.get('/api/randomquote',async (req, res) => {
 })
 
 // Handle any unknown route
-app.get('*', (req, res) => {
-    res.status(404)
-    return res.json({
+app.use((req, res) => {
+    res.status(404).json({
         message: 'Resource not found'
-    })
+    });
 });
+
 
 // starts the app
 app.listen(3000, "0.0.0.0", () => {
