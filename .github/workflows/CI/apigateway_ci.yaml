@@ -1,0 +1,15 @@
+name: API Gateway CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  security:
+    uses: ./.github/workflows/devsecops-template.yml
+    with:
+      service_path: apigateway
+      service_type: node
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
