@@ -7,14 +7,13 @@ on:
         description: 'Path to the service directory'
         required: true
         type: string
-      servicetype:
+      service_type:
         description: 'Type of the service (e.g., node, python, java)'
         required: true
         type: string
-      secrets:
-        SYNK_TOKEN:
-          required: true
-          type: string
+    secrets:
+      SYNK_TOKEN:
+        required: true
 
 jobs:
   security_scan: 
@@ -30,14 +29,14 @@ jobs:
 
         # set up nodejs environment if the service type is node
       - name: Setup Environment
-        if: ${{ inputs.servicetype == 'node' }}
+        if: ${{ inputs.service_type == 'node' }}
         uses: actions/setup-node@v3
         with:
           node-version: '18'
         
          # set up python environment if the service type is python
       - name: Setup Environment
-        if: ${{ inputs.servicetype == 'python' }}
+        if: ${{ inputs.service_type == 'python' }}
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
@@ -45,10 +44,10 @@ jobs:
         # INSTALL DEPENDENCIES
       - name: Install dependencies
         run: |
-          if [ "${{ inputs.servicetype }}" == "node" ]; then
+          if [ "${{ inputs.service_type }}" == "node" ]; then
             cd ${{ inputs.service_path }}
             npm install
-          elif [ "${{ inputs.servicetype }}" == "python" ]; then
+          elif [ "${{ inputs.service_type }}" == "python" ]; then
             cd ${{ inputs.service_path }}
             pip install -r requirements.txt
 
