@@ -57,7 +57,11 @@ jobs:
         if: inputs.service_type == 'node'
         run: |
           cd ${{ inputs.service_path }}
-          npm ci
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+             npm install
+          fi
 
       - name: Install Python dependencies
         if: inputs.service_type == 'python'
