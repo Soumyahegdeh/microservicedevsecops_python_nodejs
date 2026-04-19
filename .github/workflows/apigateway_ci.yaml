@@ -10,9 +10,12 @@ permissions:
   security-events: write
 jobs:
   security:
-    uses: ./.github/workflows/devsecops-template.yml
+    uses: ./.github/workflows/code_security_template.yml
     with:
       service_path: ApiGateway
       service_type: node
     secrets:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+
+    
