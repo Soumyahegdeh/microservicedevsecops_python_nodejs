@@ -1,14 +1,12 @@
-name: DevSecOps Template
+name: DevSecOps Template (Stable Production)
 
-on: 
+on:
   workflow_call:
     inputs:
       service_path:
-        description: 'Path to the service directory'
         required: true
         type: string
       service_type:
-        description: 'Type of the service (e.g., node, python, java)'
         required: true
         type: string
     secrets:
@@ -16,84 +14,113 @@ on:
         required: true
 
 jobs:
-  security_scan: 
+  security_scan:
     name: Security Scan
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ inputs.service_path }}
+
     permissions:
       contents: read
       security-events: write
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
 
-        # set up nodejs environment if the service type is node
-      - name: Setup Node.js Environment
-        if: ${{ inputs.service_type == 'node' }}
-        uses: actions/setup-node@v3
+      # -------------------------
+      # CHECKOUT
+      # -------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          node-version: '18'
-        
-         # set up python environment if the service type is python
-      - name: Setup Python Environment
-        if: ${{ inputs.service_type == 'python' }}
-        uses: actions/setup-python@v4
+          fetch-depth: 0
+
+      # -------------------------
+      # SETUP NODE
+      # -------------------------
+      - name: Setup Node.js
+        if: inputs.service_type == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      # -------------------------
+      # SETUP PYTHON
+      # -------------------------
+      - name: Setup Python
+        if: inputs.service_type == 'python'
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-        
-        # INSTALL DEPENDENCIES
-      - name: Install dependencies
+
+      # -------------------------
+      # INSTALL DEPENDENCIES
+      # -------------------------
+      - name: Install Node dependencies
+        if: inputs.service_type == 'node'
         run: |
-          if [ "${{ inputs.service_type }}" == "node" ]; then
-            cd ${{ inputs.service_path }}
-            npm install
-          elif [ "${{ inputs.service_type }}" == "python" ]; then
-            cd ${{ inputs.service_path }}
-            pip install -r requirements.txt
-          fi
-      
-        # SCA - SNYK
-      - name: Run Snyk scan (Node)
+          cd ${{ inputs.service_path }}
+          npm ci
+
+      - name: Install Python dependencies
+        if: inputs.service_type == 'python'
+        run: |
+          cd ${{ inputs.service_path }}
+          pip install -r requirements.txt
+
+      # -------------------------
+      # SNYK (SCA)
+      # -------------------------
+      - name: Run Snyk (Node)
         if: inputs.service_type == 'node'
         uses: snyk/actions/node@master
-        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           args: >
             --file=${{ inputs.service_path }}/package.json
             --severity-threshold=high
-            --sarif-file-output=${{ inputs.service_path }}/snyk.sarif
+            --sarif-file-output=snyk.sarif
 
-      - name: Run Snyk scan (Python)
+      - name: Run Snyk (Python)
         if: inputs.service_type == 'python'
         uses: snyk/actions/python@master
-        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           args: >
             --file=${{ inputs.service_path }}/requirements.txt
             --severity-threshold=high
-            --sarif-file-output=${{ inputs.service_path }}/snyk.sarif
-        
-         # SAST - SEMGREP (ALL LANGUAGES)
+            --sarif-file-output=snyk.sarif
+
+      # -------------------------
+      # SEMGREP (SAST - ALL LANGUAGES)
+      # -------------------------
       - name: Install Semgrep
         run: pip install semgrep
 
-      - name: Run Semgrep scan
-        run: semgrep --config=auto --sarif --output=${{ inputs.service_path }}/semgrep.sarif
+      - name: Run Semgrep
+        run: semgrep --config=auto --sarif --output=semgrep.sarif
 
-        # SECRET DETECTION -GITLEAKS (ALL LANGUAGES)
-      - name: Run GitLeaks
+      # -------------------------
+      # BANDIT (PYTHON ONLY)
+      # -------------------------
+      - name: Install Bandit
+        if: inputs.service_type == 'python'
+        run: pip install bandit
+
+      - name: Run Bandit
+        if: inputs.service_type == 'python'
+        run: bandit -r ${{ inputs.service_path }} -f sarif -o bandit.sarif || true
+
+      # -------------------------
+      # GITLEAKS (SECRETS)
+      # -------------------------
+      - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
         with:
-          args: detect --report-format sarif --report-path=${{ inputs.service_path }}/gitleaks.sarif
+          args: detect --source=${{ inputs.service_path }} --report-format sarif --report-path=gitleaks.sarif --redact
 
-      # UPLOAD RESULTS (SARIF)
+      # -------------------------
+      # UPLOAD SARIF RESULTS
+      # -------------------------
       - name: Upload Snyk SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3
@@ -102,17 +129,18 @@ jobs:
 
       - name: Upload Semgrep SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep.sarif
 
       - name: Upload Bandit SARIF
         if: inputs.service_type == 'python'
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: bandit.sarif
 
       - name: Upload Gitleaks SARIF
+        if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: gitleaks.sarif
