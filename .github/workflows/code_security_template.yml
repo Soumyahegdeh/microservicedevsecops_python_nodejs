@@ -114,14 +114,25 @@ jobs:
         if: inputs.service_type == 'python'
         run: bandit -r ${{ inputs.service_path }} -f sarif -o bandit.sarif || true
 
-      # -------------------------
-      # GITLEAKS (SECRETS)
-      # -------------------------
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        with:
-          args: detect --source=${{ inputs.service_path }} --report-format sarif --report-path=gitleaks.sarif --redact
 
+      # -------------------------
+      # SECRET DETECTION (GITLEAKS)
+      # -------------------------
+      - name: Install Gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
+          chmod +x gitleaks
+
+      - name: Run Gitleaks
+        run: |
+          ./gitleaks detect \
+           --source=${{ inputs.service_path }} \
+           --report-format sarif \
+           --report-path=gitleaks.sarif \
+           --redact
+
+
+     
       # -------------------------
       # UPLOAD SARIF RESULTS
       # -------------------------
@@ -147,4 +158,6 @@ jobs:
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: gitleaks.sarif
+           sarif_file: gitleaks.sarif
+
+
