@@ -12,4 +12,4 @@ jobs:
       service_path: ApiGateway
       service_type: node
     secrets:
-      SNYK_TOKEN: ${{ secrets.SYNK_TOKEN }}
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
