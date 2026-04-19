@@ -28,14 +28,14 @@ jobs:
         uses: actions/checkout@v3
 
         # set up nodejs environment if the service type is node
-      - name: Setup Environment
+      - name: Setup Node.js Environment
         if: ${{ inputs.service_type == 'node' }}
         uses: actions/setup-node@v3
         with:
           node-version: '18'
         
          # set up python environment if the service type is python
-      - name: Setup Environment
+      - name: Setup Python Environment
         if: ${{ inputs.service_type == 'python' }}
         uses: actions/setup-python@v4
         with:
