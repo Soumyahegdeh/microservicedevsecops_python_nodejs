@@ -1,8 +1,14 @@
-name: Code Security Template
+name: DAST - OWASP ZAP
 
 on:
   workflow_call:
     inputs:
+      image_name:
+        required: true
+        type: string
+      app_port:
+        required: true
+        type: number
       service_path:
         required: true
         type: string
@@ -10,157 +16,72 @@ on:
         required: true
         type: string
     secrets:
-      SNYK_TOKEN:
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_PASSWORD:
         required: true
 
 jobs:
-  security_scan:
-    name: Security Scan
+  dast_zap:
+    name: DAST with OWASP ZAP
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      security-events: write
 
     steps:
 
-      # -------------------------
-      # CHECKOUT
-      # -------------------------
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
         with:
-          fetch-depth: 0
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # -------------------------
-      # SETUP NODE
-      # -------------------------
-      - name: Setup Node.js
-        if: inputs.service_type == 'node'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
+      - name: Pull Image
+        run: docker pull ${{ inputs.image_name }}
 
-      # -------------------------
-      # SETUP PYTHON
-      # -------------------------
-      - name: Setup Python
-        if: inputs.service_type == 'python'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - name: Create Network
+        run: docker network create zap-net || true
 
-      # -------------------------
-      # INSTALL DEPENDENCIES
-      # -------------------------
-      - name: Install Node dependencies
-        if: inputs.service_type == 'node'
+      - name: Run App Container
         run: |
-          cd ${{ inputs.service_path }}
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-             npm install
-          fi
+          docker run -d --name app --network zap-net \
+            -p ${{ inputs.app_port }}:${{ inputs.app_port }} \
+            ${{ inputs.image_name }}
 
-      - name: Install Python dependencies
-        if: inputs.service_type == 'python'
+      - name: Wait for App
         run: |
-          cd ${{ inputs.service_path }}
-          pip install -r requirements.txt
+          for i in {1..20}; do
+            if curl -s http://localhost:${{ inputs.app_port }}/health; then
+              echo "App is up"
+              exit 0
+            fi
+            sleep 5
+          done
+          docker logs app
+          exit 1
 
-      # -------------------------
-      # SNYK (SCA)
-      # -------------------------
-      - name: Run Snyk (Node)
-        if: inputs.service_type == 'node'
-        uses: snyk/actions/node@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: >
-            --file=${{ inputs.service_path }}/package.json
-            --severity-threshold=high
-            --sarif-file-output=snyk.sarif
-
-      - name: Run Snyk (Python)
-        if: inputs.service_type == 'python'
-        uses: snyk/actions/python@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: >
-            --file=${{ inputs.service_path }}/requirements.txt
-            --severity-threshold=high
-            --sarif-file-output=snyk.sarif
-
-      # -------------------------
-      # SEMGREP (SAST - ALL LANGUAGES)
-      # -------------------------
-      - name: Install Semgrep
-        run: pip install semgrep
-
-      - name: Run Semgrep
-        run: semgrep --config=auto --sarif --output=semgrep.sarif
-
-      # -------------------------
-      # BANDIT (PYTHON ONLY)
-      # -------------------------
-      - name: Install Bandit
-        if: inputs.service_type == 'python'
-        run: pip install bandit
-
-      - name: Run Bandit
-        if: inputs.service_type == 'python'
-        run: bandit -r ${{ inputs.service_path }} -f sarif -o bandit.sarif || true
-
-
-      # -------------------------
-      # SECRET DETECTION (GITLEAKS)
-      # -------------------------
-      - name: Install Gitleaks
+      - name: Run OWASP ZAP
         run: |
-          GITLEAKS_VERSION=8.18.4
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz -o gitleaks.tar.gz
-          tar -xzf gitleaks.tar.gz
-          chmod +x gitleaks
+          mkdir -p zap-reports
 
-      - name: Run Gitleaks
-        run: |
-          ./gitleaks detect \
-          --source=${{ inputs.service_path }} \
-          --report-format sarif \
-          --report-path=gitleaks.sarif \
-          --redact
+          docker run --rm \
+            --network zap-net \
+            -v $(pwd)/zap-reports:/zap/wrk/:rw \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-full-scan.py \
+            -t http://app:${{ inputs.app_port }} \
+            -r zap-report.html \
+            -J zap-report.json \
+            -m 5 \
+            -a || true
 
-
-
-     
-      # -------------------------
-      # UPLOAD SARIF RESULTS
-      # -------------------------
-      - name: Upload Snyk SARIF
+      - name: Upload Reports
+        uses: actions/upload-artifact@v4
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: snyk.sarif
+          name: zap-reports
+          path: zap-reports
 
-      - name: Upload Semgrep SARIF
+      - name: Cleanup
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: semgrep.sarif
-
-      - name: Upload Bandit SARIF
-        if: inputs.service_type == 'python'
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: bandit.sarif
-
-      - name: Upload Gitleaks SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: gitleaks.sarif
-
-
+        run: |
+          docker stop app || true
+          docker rm app || true
