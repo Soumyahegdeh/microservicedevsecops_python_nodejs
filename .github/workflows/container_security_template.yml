@@ -56,6 +56,15 @@ jobs:
           output: trivy.sarif
           severity: HIGH,CRITICAL
 
+      - name: Smoke Test Container
+        run: |
+           docker run -d -p 3000:3000 --name test soumyahe/apigateway:${{ github.run_number }}
+           sleep 10
+           curl -f http://localhost:3000/health
+           docker stop test
+           docker rm test
+
+
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
