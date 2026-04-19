@@ -17,5 +17,16 @@ jobs:
     secrets:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
+  container_security:
+    needs: security
+    uses: ./.github/workflows/container_security_template.yml 
+    with:
+      service_path: ApiGateway
+      service_type: node
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
 
     

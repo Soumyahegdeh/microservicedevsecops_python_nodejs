@@ -1,4 +1,4 @@
-name: DevSecOps Template (Stable Production)
+name: Code Security Template
 
 on:
   workflow_call:
