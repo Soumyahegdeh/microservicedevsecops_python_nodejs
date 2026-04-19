@@ -8,34 +8,26 @@ on:
 permissions:
   contents: read
   security-events: write
+
 jobs:
+
   security:
     uses: ./.github/workflows/code_security_template.yml
     with:
       service_path: ApiGateway
       service_type: node
     secrets: inherit
-     # SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
   container_security:
-    needs: security
-    uses: ./.github/workflows/container_security_template.yml 
+    uses: ./.github/workflows/container_security_template.yml
     with:
       service_path: ApiGateway
       service_type: node
     secrets: inherit
-      #DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      #DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-
 
   dast:
     uses: ./.github/workflows/dast_security_template.yml
-    needs: container_security
     with:
       image_name: soumyahe/apigateway:${{ github.run_number }}
       app_port: 3000
     secrets: inherit
-
-
-
-    
