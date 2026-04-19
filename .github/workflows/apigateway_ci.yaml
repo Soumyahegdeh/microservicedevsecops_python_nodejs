@@ -34,7 +34,7 @@ jobs:
     with:
       image_name: soumyahe/apigateway:${{ github.run_number }}
       app_port: 3000
-      secrets: inherit
+    secrets: inherit
 
 
 
