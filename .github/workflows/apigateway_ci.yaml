@@ -22,6 +22,7 @@ jobs:
     uses: ./.github/workflows/container_security_template.yml 
     with:
       image_name: soumyahe/apigateway:${{ github.run_number }}
+      app_port: 3000
       service_path: ApiGateway
       service_type: node
     secrets:
