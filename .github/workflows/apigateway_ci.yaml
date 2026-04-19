@@ -14,8 +14,8 @@ jobs:
     with:
       service_path: ApiGateway
       service_type: node
-    secrets:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    secrets: inherit
+     # SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
   container_security:
     needs: security
@@ -23,9 +23,9 @@ jobs:
     with:
       service_path: ApiGateway
       service_type: node
-    secrets:
-      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    secrets: inherit
+      #DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      #DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
 
   dast:
