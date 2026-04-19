@@ -1,4 +1,4 @@
-name: Dast Security Template
+name: Container Security Template
 on:
   workflow_call:
     inputs:
@@ -18,11 +18,6 @@ on:
         required: true
         type: string
 
-      health_path:
-        description: "Health check endpoint"
-        required: false
-        type: string
-        default: /health
     secrets:
       DOCKER_USERNAME:
         required: true
