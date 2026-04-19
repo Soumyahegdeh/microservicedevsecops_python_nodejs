@@ -1,0 +1,166 @@
+name: Code Security Template
+
+on:
+  workflow_call:
+    inputs:
+      service_path:
+        required: true
+        type: string
+      service_type:
+        required: true
+        type: string
+    secrets:
+      SNYK_TOKEN:
+        required: true
+
+jobs:
+  security_scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+
+      # -------------------------
+      # CHECKOUT
+      # -------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # -------------------------
+      # SETUP NODE
+      # -------------------------
+      - name: Setup Node.js
+        if: inputs.service_type == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      # -------------------------
+      # SETUP PYTHON
+      # -------------------------
+      - name: Setup Python
+        if: inputs.service_type == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # -------------------------
+      # INSTALL DEPENDENCIES
+      # -------------------------
+      - name: Install Node dependencies
+        if: inputs.service_type == 'node'
+        run: |
+          cd ${{ inputs.service_path }}
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+             npm install
+          fi
+
+      - name: Install Python dependencies
+        if: inputs.service_type == 'python'
+        run: |
+          cd ${{ inputs.service_path }}
+          pip install -r requirements.txt
+
+      # -------------------------
+      # SNYK (SCA)
+      # -------------------------
+      - name: Run Snyk (Node)
+        if: inputs.service_type == 'node'
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: >
+            --file=${{ inputs.service_path }}/package.json
+            --severity-threshold=high
+            --sarif-file-output=snyk.sarif
+
+      - name: Run Snyk (Python)
+        if: inputs.service_type == 'python'
+        uses: snyk/actions/python@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: >
+            --file=${{ inputs.service_path }}/requirements.txt
+            --severity-threshold=high
+            --sarif-file-output=snyk.sarif
+
+      # -------------------------
+      # SEMGREP (SAST - ALL LANGUAGES)
+      # -------------------------
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep
+        run: semgrep --config=auto --sarif --output=semgrep.sarif
+
+      # -------------------------
+      # BANDIT (PYTHON ONLY)
+      # -------------------------
+      - name: Install Bandit
+        if: inputs.service_type == 'python'
+        run: pip install bandit
+
+      - name: Run Bandit
+        if: inputs.service_type == 'python'
+        run: bandit -r ${{ inputs.service_path }} -f sarif -o bandit.sarif || true
+
+
+      # -------------------------
+      # SECRET DETECTION (GITLEAKS)
+      # -------------------------
+      - name: Install Gitleaks
+        run: |
+          GITLEAKS_VERSION=8.18.4
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz
+          chmod +x gitleaks
+
+      - name: Run Gitleaks
+        run: |
+          ./gitleaks detect \
+          --source=${{ inputs.service_path }} \
+          --report-format sarif \
+          --report-path=gitleaks.sarif \
+          --redact
+
+
+
+     
+      # -------------------------
+      # UPLOAD SARIF RESULTS
+      # -------------------------
+      - name: Upload Snyk SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk.sarif
+
+      - name: Upload Semgrep SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+
+      - name: Upload Bandit SARIF
+        if: inputs.service_type == 'python'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit.sarif
+
+      - name: Upload Gitleaks SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
+
+

@@ -28,4 +28,14 @@ jobs:
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
 
+  dast:
+    uses: ./.github/workflows/dast_template.yml
+    needs: container_security
+    with:
+      image_name: soumyahe/apigateway:${{ github.run_number }}
+      app_port: 3000
+      secrets: inherit
+
+
+
     
