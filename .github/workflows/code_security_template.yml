@@ -72,16 +72,19 @@ jobs:
       # -------------------------
       # SNYK (SCA)
       # -------------------------
+
+      - name: Install Snyk CLI
+        run: npm install -g snyk
+
       - name: Run Snyk (Node)
         if: inputs.service_type == 'node'
-        uses: snyk/actions/node@master
+        run: |
+          cd ${{ inputs.service_path }}
+          snyk test --file=package.json --severity-threshold=high --sarif-file-output=snyk.sarif
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: >
-            --file=${{ inputs.service_path }}/package.json
-            --severity-threshold=high
-            --sarif-file-output=snyk.sarif
+
+
 
       - name: Run Snyk (Python)
         if: inputs.service_type == 'python'
