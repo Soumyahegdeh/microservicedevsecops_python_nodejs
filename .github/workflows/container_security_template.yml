@@ -24,6 +24,12 @@ on:
         type: string
         default: /health
 
+      container_port:
+         description: "Port inside container (nginx/service port)"
+         required: false
+         type: number
+         default: 80
+
     secrets:
       DOCKER_USERNAME:
         required: true
@@ -75,7 +81,7 @@ jobs:
       - name: Smoke Test Container
         run: |
            docker run -d \
-            -p ${{ inputs.app_port }}:${{ inputs.app_port }} \
+            -p ${{ inputs.app_port }}:${{ inputs.container_port }} \
             --name test \
             ${{ inputs.image_name }}:${{ github.run_number }}
            sleep 10

@@ -1,5 +1,4 @@
-FROM nginx:1.10
+FROM nginx:stable-alpine
 
-ADD vhost.conf /etc/nginx/conf.d/default.conf
-
-COPY ./dist /var/www
+COPY vhost.conf /etc/nginx/conf.d/default.conf
+COPY ./dist /usr/share/nginx/html

@@ -23,6 +23,7 @@ jobs:
     with:
       image_name: soumyahe/frontendapplication
       app_port: 3000
+      container_port: 80
       service_path: FrontendApplication
       service_type: node
       health_path: /
