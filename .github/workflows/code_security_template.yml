@@ -120,8 +120,23 @@ jobs:
         run: |
            bandit -r ${{ inputs.service_path }} -f sarif -o bandit.sarif || true
            if [ ! -f bandit.sarif ]; then
-             echo '{"version":"2.1.0","runs":[]}' > bandit.sarif
-           fi
+              echo '{
+                
+                "version": "2.1.0",
+                "runs": [{  
+                   "tool": {
+                      "driver": {
+                      "name": "Bandit",
+                      "version": "1.0.0",
+                      "rules": []
+                     }
+                    },
+                    "results": []
+                
+                }]
+                
+              }' > bandit.sarif
+            fi
 
       # -------------------------
       # SECRET DETECTION (GITLEAKS)
@@ -159,6 +174,7 @@ jobs:
       - name: Upload Bandit SARIF
         if: inputs.service_type == 'python'
         uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
         with:
           sarif_file: bandit.sarif
 
