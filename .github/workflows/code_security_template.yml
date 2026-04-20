@@ -145,7 +145,7 @@ jobs:
       # UPLOAD SARIF RESULTS
       # -------------------------
       - name: Upload Snyk SARIF
-        if: always()
+        if: inputs.service_type == 'node'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk.sarif
