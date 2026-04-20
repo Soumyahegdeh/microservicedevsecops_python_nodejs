@@ -85,14 +85,12 @@ jobs:
 
       - name: Run Snyk (Python)
         if: inputs.service_type == 'python'
-        uses: snyk/actions/python@master
+        run: |
+          cd ${{ inputs.service_path }}
+          snyk test --file=requirements.txt --severity-threshold=high --sarif-file-output=snyk.sarif
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: >
-            --file=${{ inputs.service_path }}/requirements.txt
-            --severity-threshold=high
-            --sarif-file-output=snyk.sarif
+
 
       # -------------------------
       # SEMGREP (SAST - ALL LANGUAGES)
