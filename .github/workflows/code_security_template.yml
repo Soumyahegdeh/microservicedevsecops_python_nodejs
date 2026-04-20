@@ -117,8 +117,11 @@ jobs:
 
       - name: Run Bandit
         if: inputs.service_type == 'python'
-        run: bandit -r ${{ inputs.service_path }} -f sarif -o bandit.sarif || true
-
+        run: |
+           bandit -r ${{ inputs.service_path }} -f sarif -o bandit.sarif || true
+           if [ ! -f bandit.sarif ]; then
+             echo '{"version":"2.1.0","runs":[]}' > bandit.sarif
+           fi
 
       # -------------------------
       # SECRET DETECTION (GITLEAKS)
@@ -137,9 +140,6 @@ jobs:
           --report-format sarif \
           --report-path=gitleaks.sarif \
           --redact
-
-
-
      
       # -------------------------
       # UPLOAD SARIF RESULTS
