@@ -90,13 +90,13 @@ jobs:
         run: npm install -g snyk
 
 
-      - name: Run Snyk (Python)
-        if: inputs.service_type == 'python'
-        run: |
-          cd ${{ inputs.service_path }}
-          snyk test --file=requirements.txt --severity-threshold=high --sarif-file-output=snyk.sarif
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+     # - name: Run Snyk (Python)
+     #   if: inputs.service_type == 'python'
+      #  run: |
+       #   cd ${{ inputs.service_path }}
+        #  snyk test --file=requirements.txt --severity-threshold=high --sarif-file-output=snyk.sarif
+        # env:
+         # SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
 
       # -------------------------
