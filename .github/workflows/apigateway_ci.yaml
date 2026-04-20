@@ -36,6 +36,7 @@ jobs:
     with:
        image_name: soumyahe/apigateway:${{ github.run_number }}
        app_port: 3000
+       container_port: 3000
        service_path: ApiGateway
        service_type: node
     secrets:

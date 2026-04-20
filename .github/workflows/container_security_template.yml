@@ -78,20 +78,28 @@ jobs:
           output: trivy.sarif
           severity: HIGH,CRITICAL
 
+
+
       - name: Smoke Test Container
         run: |
-           docker run -d \
+          docker run -d \
             -p ${{ inputs.app_port }}:${{ inputs.container_port }} \
             --name test \
             ${{ inputs.image_name }}:${{ github.run_number }}
-           sleep 10
 
-           echo "==== CONTAINER LOGS ===="
-           docker logs test
-           echo "========================"
-           curl -f http://localhost:${{ inputs.app_port }}${{ inputs.health_path }}
-           docker stop test
-           docker rm test
+          for i in {1..20}; do
+            if curl -s http://localhost:${{ inputs.app_port }}${{ inputs.health_path }}; then
+              echo "App is up"
+              docker stop test && docker rm test
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "==== CONTAINER LOGS ===="
+          docker logs test
+          echo "========================"
+          docker stop test && docker rm test
+          exit 1
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v3
