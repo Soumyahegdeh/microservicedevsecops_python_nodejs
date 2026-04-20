@@ -25,6 +25,7 @@ jobs:
       app_port: 3000
       service_path: FrontendApplication
       service_type: node
+      health_path: /
     secrets:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}

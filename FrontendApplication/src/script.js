@@ -1,4 +1,4 @@
-var api = process.env.API_GATEWAY // get the API Gateway from the environment
+var api = "http://localhost:3000" // get the API Gateway from the environment
 
 $(document).ready(function() {
     $("#btn").click(function() {
