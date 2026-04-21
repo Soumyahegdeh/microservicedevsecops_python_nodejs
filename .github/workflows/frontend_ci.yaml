@@ -1,36 +1,40 @@
-name: API Gateway CI
+name: Frontend Application CI
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'ApiGateway/**'
+      - 'FrontendApplication/**'
       - '.github/workflows/**'
 
   pull_request:
     branches: [ main ]
     paths:
-      - 'ApiGateway/**'
+      - 'FrontendApplication/**'
       - '.github/workflows/**'
+
+
 permissions:
   contents: read
   security-events: write
+
 
 jobs:
   ci:
     uses: ./.github/workflows/ci.yaml
     with:
-      service_path: ApiGateway
+      service_path: FrontendApplication
       service_type: node
-      image_name: soumyahe/apigateway
+      image_name: soumyahe/frontendapplication
       app_port: 3000
-      container_port: 3000
+      container_port: 80
       health_path: /health
     secrets:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-  
+
+
 
 
     
