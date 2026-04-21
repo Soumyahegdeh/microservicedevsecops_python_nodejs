@@ -27,7 +27,7 @@ jobs:
       service_type: python
       image_name: soumyahe/quoteservice
       app_port: 5000
-      container_port: 80
+      container_port: 5000
       health_path: /
     secrets:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
