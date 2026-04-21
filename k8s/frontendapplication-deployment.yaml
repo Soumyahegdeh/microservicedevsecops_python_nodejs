@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: soumyahe/frontendapplication:latest
+          image: soumyahe/frontendapplication:74f1cd34841e48993c60828749a31b6b54c11495
           ports:
             - containerPort: 80
