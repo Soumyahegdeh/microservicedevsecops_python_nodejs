@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: apigateway
-          image: soumyahe/apigateway:latest
+          image: soumyahe/apigateway:a9c0704cca58c75c2161b2282553f87bf087f197
           ports:
             - containerPort: 3000
           env:
