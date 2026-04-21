@@ -1,0 +1,166 @@
+name: CI Template
+
+on:
+  workflow_call:
+    inputs:
+      service_path:
+        required: true
+        type: string
+      service_type:
+        required: true
+        type: string
+      image_name:
+        required: true
+        type: string
+      app_port:
+        required: true
+        type: number
+      health_path:
+        required: false
+        type: string
+        default: /health
+      container_port:
+        required: false
+        type: number
+        default: 80
+
+    secrets:
+      SNYK_TOKEN:
+        required: true
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_PASSWORD:
+        required: true
+
+jobs:
+
+# =========================
+# 1. CODE SECURITY
+# =========================
+  code_security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: inputs.service_type == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Setup Python
+        if: inputs.service_type == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd ${{ inputs.service_path }}
+          if [ "${{ inputs.service_type }}" = "node" ]; then
+            npm install
+          else
+            pip install -r requirements.txt
+          fi
+
+      - name: Install Snyk
+        run: npm install -g snyk
+
+      - name: Run Snyk
+        run: |
+          cd ${{ inputs.service_path }}
+          snyk test --severity-threshold=high --sarif-file-output=snyk.sarif
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep
+        run: semgrep --config=auto --sarif --output=semgrep.sarif
+
+      - name: Install Bandit
+        if: inputs.service_type == 'python'
+        run: pip install bandit
+
+      - name: Run Bandit
+        if: inputs.service_type == 'python'
+        run: bandit -r ${{ inputs.service_path }} -f sarif -o bandit.sarif || true
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+
+
+# =========================
+# 2. CONTAINER SECURITY
+# =========================
+  container_security:
+    runs-on: ubuntu-latest
+    needs: code_security
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build & Push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.service_path }}
+          file: ${{ inputs.service_path }}/app.dockerfile
+          push: true
+          tags: ${{ inputs.image_name }}:${{ github.sha }}
+
+      - name: Scan Image (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ inputs.image_name }}:${{ github.sha }}
+          format: sarif
+          output: trivy.sarif
+
+      - name: Smoke Test
+        run: |
+          docker run -d -p ${{ inputs.app_port }}:${{ inputs.container_port }} --name test \
+          ${{ inputs.image_name }}:${{ github.sha }}
+
+          sleep 10
+          curl http://localhost:${{ inputs.app_port }}${{ inputs.health_path }}
+
+# =========================
+# 3. DAST
+# =========================
+  dast:
+    runs-on: ubuntu-latest
+    needs: container_security
+
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - run: docker pull ${{ inputs.image_name }}:${{ github.sha }}
+
+      - run: docker network create zap-net || true
+
+      - name: Run App
+        run: |
+          docker run -d --name app --network zap-net \
+          -p ${{ inputs.app_port }}:${{ inputs.container_port }} \
+          ${{ inputs.image_name }}:${{ github.sha }}
+
+      - name: Run ZAP
+        run: |
+          docker run --rm --network zap-net \
+          ghcr.io/zaproxy/zaproxy:stable \
+          zap-full-scan.py \
+          -t http://app:${{ inputs.app_port }} \
+          -m 5 -a || true
