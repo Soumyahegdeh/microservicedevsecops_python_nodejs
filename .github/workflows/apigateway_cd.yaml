@@ -1,0 +1,17 @@
+name: API Gateway CD
+
+on:
+  workflow_run:
+    workflows: ["API Gateway CI"]
+    types:
+      - completed
+
+jobs:
+  cd:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    uses: ./.github/workflows/cd.yaml
+    with:
+      service_name: apigateway
+      image_name: soumyahe/apigateway
+      deployment_file: k8s/apigateway-deployment.yaml
+

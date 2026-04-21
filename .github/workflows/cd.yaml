@@ -1,0 +1,34 @@
+name: CD Template
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        required: true
+        type: string
+      image_name:
+        required: true
+        type: string
+      deployment_file:
+        required: true
+        type: string
+
+jobs:
+  update-manifest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Update image tag
+        run: |
+          sed -i "s|image:.*|image: ${{ inputs.image_name }}:${{ github.sha }}|g" ${{ inputs.deployment_file }}
+
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Update ${{ inputs.service_name }} image"
+          git push
