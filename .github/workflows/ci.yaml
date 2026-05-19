@@ -95,8 +95,8 @@ jobs:
           if [ "${{ matrix.service_type }}" = "node" ]; then
             npx snyk test --severity-threshold=critical
           else
-           pip install snyk
-           snyk test --severity-threshold=critical
+           pip install pip-audit
+           pip-audit -r requirements.txt
           fi
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
