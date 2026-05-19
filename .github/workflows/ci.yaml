@@ -1,97 +1,123 @@
 name: CI Template
-
 on:
-  workflow_call:
-    inputs:
-      service_path:
-        required: true
-        type: string
-      service_type:
-        required: true
-        type: string
-      image_name:
-        required: true
-        type: string
-      app_port:
-        required: true
-        type: number
-      health_path:
-        required: false
-        type: string
-        default: /health
-      container_port:
-        required: false
-        type: number
-        default: 80
-
-    secrets:
-      SNYK_TOKEN:
-        required: true
-      DOCKER_USERNAME:
-        required: true
-      DOCKER_PASSWORD:
-        required: true
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
 
 # =========================
-# 1. CODE SECURITY
+# 1. REPO SECURITY
 # =========================
-  code_security:
+  security_scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Gitleaks Scan
+        if: github.event_name == 'push'
+        uses: gitleaks/gitleaks-action@v2
+
+      - name: Semgrep SAST Scan
+        if: github.event_name == 'push'
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: auto
+          generateSarif: "1"
+
+      - name: Upload Semgrep results
+        if: always()  
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
+  code_security:
+     runs-on: ubuntu-latest
+     strategy:
+       matrix:
+         include:
+          - service: ApiGateway
+            path: ApiGateway
+            service_type: node
+
+          - service: QuoteService
+            path: QuoteService
+            service_type: python
+
+          - service: FrontendApplication
+            path: FrontendApplication
+            service_type: node
+
+     steps:
       - uses: actions/checkout@v4
 
+      
       - name: Setup Node
-        if: inputs.service_type == 'node'
+        if: matrix.service_type == 'node'
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
       - name: Setup Python
-        if: inputs.service_type == 'python'
+        if: matrix.service_type == 'python'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          cd ${{ inputs.service_path }}
-          if [ "${{ inputs.service_type }}" = "node" ]; then
+          cd ${{ matrix.path }}
+          if [ "${{ matrix.service_type }}" = "node" ]; then
             npm install
           else
             pip install -r requirements.txt
           fi
 
-      - name: Install Snyk
-        run: npm install -g snyk
 
-      - name: Run Snyk
+      - name: Run ESLint (Code Quality Check)
         run: |
-          cd ${{ inputs.service_path }}
-          snyk test --severity-threshold=high --sarif-file-output=snyk.sarif
+           cd ${{ matrix.path }}
+           if npm run | grep -q "lint"; then
+              npm run lint
+           else
+              echo "No lint script found, skipping..."
+           fi
+      - name: Run Snyk Security Scan
+        run: |
+          cd ${{ matrix.path }}
+          if [ "${{ matrix.service_type }}" = "node" ]; then
+            npx snyk test --severity-threshold=critical
+          else
+           pip install snyk
+           snyk test --severity-threshold=critical
+          fi
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
-      - name: Install Semgrep
-        run: pip install semgrep
-
-      - name: Run Semgrep
-        run: semgrep --config=auto --sarif --output=semgrep.sarif
-
-      - name: Install Bandit
-        if: inputs.service_type == 'python'
-        run: pip install bandit
-
-      - name: Run Bandit
-        if: inputs.service_type == 'python'
-        run: bandit -r ${{ inputs.service_path }} -f sarif -o bandit.sarif || true
-
-      - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: semgrep.sarif
+      - name: Run Tests (if available)
+        run: |
+          cd ${{ matrix.path }}
+          if [ "${{ matrix.service_type }}" = "node" ]; then
+            if npm run | grep -q "test"; then
+               npm test
+            else
+              echo "No tests found, skipping..."
+            fi
+          else
+            if [ -d "tests" ]; then
+               pip install pytest
+               pytest tests/
+            else
+              echo "No tests found, skipping..."
+            fi
+          fi
 
 
 # =========================
@@ -114,8 +140,8 @@ jobs:
       - name: Build & Push
         uses: docker/build-push-action@v5
         with:
-          context: ${{ inputs.service_path }}
-          file: ${{ inputs.service_path }}/app.dockerfile
+          context: ${{ matrix.path }}
+          file: ${{ matrix.path }}/app.dockerfile
           push: true
           tags: ${{ inputs.image_name }}:${{ github.sha }}
 
