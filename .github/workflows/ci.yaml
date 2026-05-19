@@ -101,21 +101,23 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
-      - name: Run Tests (if available)
+      - name: Run Tests
         run: |
           cd ${{ matrix.path }}
           if [ "${{ matrix.service_type }}" = "node" ]; then
-            if npm run | grep -q "test"; then
-               npm test
+            # Check if test script is the default placeholder
+            TEST_SCRIPT=$(node -e "console.log(require('./package.json').scripts?.test || '')")
+            if [[ "$TEST_SCRIPT" == *"no test specified"* ]] || [ -z "$TEST_SCRIPT" ]; then
+                echo "No real tests found, skipping..."
             else
-              echo "No tests found, skipping..."
+               npm test
             fi
           else
             if [ -d "tests" ]; then
-               pip install pytest
-               pytest tests/
+              pip install pytest
+              pytest tests/
             else
-              echo "No tests found, skipping..."
+              echo "No Python tests found, skipping..."
             fi
           fi
 
