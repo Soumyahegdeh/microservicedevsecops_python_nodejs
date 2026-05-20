@@ -232,3 +232,31 @@ jobs:
         with:
           sarif_file: ${{ github.workspace }}/trivy-${{ matrix.service }}.sarif
           category: trivy-${{ matrix.service }}
+
+      # Step 7 - Fail pipeline if vulnerabilities found
+      - name: Check Trivy result
+        if: steps.trivy-scan.outcome == 'failure'
+        run: |
+          echo "❌ Trivy found HIGH/CRITICAL vulnerabilities in ${{ matrix.service }}!"
+          echo "Fix the vulnerabilities before pushing to Docker Hub"
+          exit 1
+
+    # Step 8 - Smoke test
+      - name: Smoke Test
+        run: |
+          docker run -d \
+            -p ${{ matrix.app_port }}:${{ matrix.container_port }} \
+            --name test_${{ matrix.service }} \
+            ${{ matrix.image_name }}:${{ github.sha }}
+
+          sleep 10
+
+          docker ps | grep test_${{ matrix.service }}
+
+          curl --fail \
+             --retry 3 \
+             --retry-delay 5 \
+             http://localhost:${{ matrix.app_port }}${{ matrix.health_path }}
+
+          docker stop test_${{ matrix.service }}
+          docker rm test_${{ matrix.service }}
