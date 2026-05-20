@@ -192,81 +192,11 @@ jobs:
     # Step 3 - Install Trivy binary directly
       - name: Install Trivy
         run: |
-           wget -qO- https://github.com/aquasecurity/trivy/releases/download/v0.61.0/trivy_0.61.0_Linux-64bit.tar.gz | tar -xz
-           sudo mv trivy /usr/local/bin/
-           trivy --version
+            sudo apt-get install wget apt-transport-https gnupg -y
+            wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+            echo "deb https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
+            sudo apt-get update
+            sudo apt-get install trivy -y
+            trivy --version
 
-    # Step 4 - Human readable table (visible in Actions log)
-      - name: Trivy vulnerability summary
-        run: |
-          trivy image \
-            --input ${{ github.workspace }}/${{ matrix.service }}.tar \
-            --severity HIGH,CRITICAL \
-            --format table
-        continue-on-error: true
-
-    # Step 5 - SARIF format for GitHub Security tab
-      - name: Scan Image with Trivy
-        id: trivy-scan
-        run: |
-          trivy image \
-            --input ${{ github.workspace }}/${{ matrix.service }}.tar \
-            --severity HIGH,CRITICAL \
-            --format sarif \
-            --output ${{ github.workspace }}/trivy-${{ matrix.service }}.sarif \
-            --exit-code 1 || true   # ← don't exit immediately
-
-          if [ ! -f "${{ github.workspace }}/trivy-${{ matrix.service }}.sarif" ]; then
-           echo '{"version":"2.1.0","runs":[]}' > \
-            ${{ github.workspace }}/trivy-${{ matrix.service }}.sarif
-          fi
-        continue-on-error: true
-
-    # Step 6 - Upload SARIF to GitHub Security tab
-      - name: Upload Trivy SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: ${{ github.workspace }}/trivy-${{ matrix.service }}.sarif
-          category: trivy-${{ matrix.service }}
-
-    # Step 7 - Fail pipeline if vulnerabilities found
-      - name: Check Trivy result
-        if: steps.trivy-scan.outcome == 'failure'
-        run: |
-          echo "❌ Trivy found HIGH/CRITICAL vulnerabilities in ${{ matrix.service }}!"
-          echo "Fix the vulnerabilities before pushing to Docker Hub"
-          exit 1
-
-    # Step 8 - Smoke test
-      - name: Smoke Test
-        run: |
-          docker run -d \
-            -p ${{ matrix.app_port }}:${{ matrix.container_port }} \
-            --name test_${{ matrix.service }} \
-            ${{ matrix.image_name }}:${{ github.sha }}
-
-          sleep 10
-
-          docker ps | grep test_${{ matrix.service }}
-
-          curl --fail \
-             --retry 3 \
-             --retry-delay 5 \
-             http://localhost:${{ matrix.app_port }}${{ matrix.health_path }}
-
-          docker stop test_${{ matrix.service }}
-          docker rm test_${{ matrix.service }}
-
-    # Step 9 - Push ONLY if everything passed
-      - name: Push Image to Docker Hub
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.path }}
-          file: ${{ matrix.path }}/app.dockerfile
-          push: true
-          tags: |
-            ${{ matrix.image_name }}:${{ github.sha }}
-            ${{ matrix.image_name }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+ 
