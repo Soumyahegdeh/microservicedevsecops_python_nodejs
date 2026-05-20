@@ -1,0 +1,8 @@
+# Express CSRF - REST API uses JWT not browser cookies
+ApiGateway/index.js
+
+# HTML integrity - CDN links, acceptable for this project
+FrontendApplication/src/index.html
+
+# Nginx header - intentional config
+FrontendApplication/vhost.conf

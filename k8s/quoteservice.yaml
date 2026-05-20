@@ -12,8 +12,12 @@ spec:
       labels:
         app: quotes
     spec:
+      securityContext:
+        runAsNonRoot: true
       containers:
         - name: quotes
+          securityContext:
+            allowPrivilegeEscalation: false
           image: soumyahe/quoteservice:59c42678cc28c12f2456bf6a18d4c8718ba3b13b
           ports:
             - containerPort: 5000

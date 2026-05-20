@@ -12,8 +12,12 @@ spec:
       labels:
         app: frontend
     spec:
+      securityContext:
+        runAsNonRoot: true
       containers:
         - name: frontend
+          securityContext:
+            allowPrivilegeEscalation: false 
           image: soumyahe/frontendapplication:3b459f8f6cb287e9e0424c9ac5caa43be395293d
           ports:
             - containerPort: 80

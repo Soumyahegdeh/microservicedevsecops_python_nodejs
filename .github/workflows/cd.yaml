@@ -1,34 +1,55 @@
-name: CD Template
-
+name: CD pipeline
 on:
-  workflow_call:
-    inputs:
-      service_name:
-        required: true
-        type: string
-      image_name:
-        required: true
-        type: string
-      deployment_file:
-        required: true
-        type: string
+  workflow_run:
+    workflows: ["CI pipeline"]
+    types:
+      - completed
 
 jobs:
-  update-manifest:
+  update-manifests:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}  # only on CI success
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout repo
+      - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: main
 
-      - name: Update image tag
+      - name: Update image tags in k8s manifests
+        env:
+          NEW_TAG: ${{ github.event.workflow_run.head_sha }}
         run: |
-          sed -i "s|image:.*|image: ${{ inputs.image_name }}:${{ github.sha }}|g" ${{ inputs.deployment_file }}
+          declare -A IMAGE_MAP
+          IMAGE_MAP["ApiGateway"]="soumyahe/apigateway"
+          IMAGE_MAP["QuoteService"]="soumyahe/quoteservice"
+          IMAGE_MAP["FrontendApplication"]="soumyahe/frontendapplication"
 
-      - name: Commit & Push
+          declare -A MANIFEST_MAP
+          MANIFEST_MAP["ApiGateway"]="k8s/apigateway.yaml"
+          MANIFEST_MAP["QuoteService"]="k8s/quoteservice.yaml"
+          MANIFEST_MAP["FrontendApplication"]="k8s/frontendapplication.yaml"
+
+          for SERVICE in ApiGateway QuoteService FrontendApplication; do
+              IMAGE="${IMAGE_MAP[$SERVICE]}"
+              MANIFEST="${MANIFEST_MAP[$SERVICE]}"
+
+              if [ -f "$MANIFEST" ]; then
+                sed -i "s|image:.*${IMAGE}:.*|image: ${IMAGE}:${NEW_TAG}|g" "$MANIFEST"
+                echo "✅ Updated $MANIFEST with $IMAGE:$NEW_TAG"
+              else
+                echo "⚠️ Warning: $MANIFEST not found, skipping"
+              fi
+          done
+
+      - name: Commit and push updated manifests
+        env:
+          NEW_TAG: ${{ github.event.workflow_run.head_sha }}
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add .
-          git commit -m "Update ${{ inputs.service_name }} image"
-          git push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/
+          git diff --staged --quiet || git commit -m "ci: update image tags to ${NEW_TAG}"
+          git push origin HEAD:main
