@@ -260,3 +260,17 @@ jobs:
 
           docker stop test_${{ matrix.service }}
           docker rm test_${{ matrix.service }}
+
+      
+    # Step 9 - Push ONLY if everything passed
+      - name: Push Image to Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.path }}
+          file: ${{ matrix.path }}/app.dockerfile
+          push: true
+          tags: |
+            ${{ matrix.image_name }}:${{ github.sha }}
+            ${{ matrix.image_name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
