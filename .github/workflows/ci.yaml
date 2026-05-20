@@ -31,18 +31,35 @@ jobs:
         id: semgrep
         uses: semgrep/semgrep-action@v1
         with:
-          config: auto
+           config: auto
         continue-on-error: true
 
-      - name: Ensure semgrep.sarif exists
+      - name: Ensure semgrep.sarif exists      # ← fixed valid SARIF
         if: always()
         run: |
           if [ ! -f semgrep.sarif ]; then
-            echo '{"version":"2.1.0","runs":[]}' > semgrep.sarif
+            cat > semgrep.sarif << 'EOF'
+            {
+              "version": "2.1.0",
+              "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+              "runs": [
+                {
+                  "tool": {
+                    "driver": {
+                      "name": "Semgrep",
+                      "version": "1.0.0",
+                      "rules": []
+                    }
+                  },
+                  "results": []
+                }
+              ]
+            }
+            EOF
           fi
 
-      - name: Upload Semgrep results
-        if: always()
+      - name: Upload Semgrep results           # ← skip if semgrep was skipped
+        if: always() && steps.semgrep.outcome != 'skipped' && hashFiles('semgrep.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
