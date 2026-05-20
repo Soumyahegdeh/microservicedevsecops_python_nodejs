@@ -199,4 +199,11 @@ jobs:
             sudo apt-get install trivy -y
             trivy --version
 
- 
+       # Step 4 - Human readable table (visible in Actions log)
+      - name: Trivy vulnerability summary
+        run: |
+          trivy image \
+            --input ${{ github.workspace }}/${{ matrix.service }}.tar \
+            --severity HIGH,CRITICAL \
+            --format table
+        continue-on-error: true
