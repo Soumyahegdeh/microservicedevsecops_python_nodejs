@@ -136,7 +136,7 @@ jobs:
         - service: ApiGateway
           path: ApiGateway
           service_type: node
-          image_name: soumyahegdeh/api-gateway
+          image_name: soumyahegdeh/apigateway
           app_port: 3000
           container_port: 3000
           health_path: /health
@@ -144,7 +144,7 @@ jobs:
         - service: QuoteService
           path: QuoteService
           service_type: python
-          image_name: soumyahegdeh/quote-service
+          image_name: soumyahegdeh/quoteservice
           app_port: 5000
           container_port: 5000
           health_path: /health
@@ -152,7 +152,7 @@ jobs:
         - service: FrontendApplication
           path: FrontendApplication
           service_type: node
-          image_name: soumyahegdeh/frontend-application
+          image_name: soumyahegdeh/frontendapplication
           app_port: 80
           container_port: 80
           health_path: /
