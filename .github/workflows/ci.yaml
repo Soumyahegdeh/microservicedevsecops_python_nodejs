@@ -207,3 +207,20 @@ jobs:
             --severity HIGH,CRITICAL \
             --format table
         continue-on-error: true
+
+       # Step 5 - SARIF format for GitHub Security tab
+      - name: Scan Image with Trivy
+        id: trivy-scan
+        run: |
+          trivy image \
+            --input ${{ github.workspace }}/${{ matrix.service }}.tar \
+            --severity HIGH,CRITICAL \
+            --format sarif \
+            --output ${{ github.workspace }}/trivy-${{ matrix.service }}.sarif \
+            --exit-code 1 || true   # ← don't exit immediately
+
+          if [ ! -f "${{ github.workspace }}/trivy-${{ matrix.service }}.sarif" ]; then
+           echo '{"version":"2.1.0","runs":[]}' > \
+            ${{ github.workspace }}/trivy-${{ matrix.service }}.sarif
+          fi
+        continue-on-error: true
