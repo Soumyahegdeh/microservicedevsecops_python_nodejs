@@ -1,4 +1,4 @@
-name: CI Template
+name: CI pipeline
 on:
   push:
     branches:
@@ -136,7 +136,7 @@ jobs:
         - service: ApiGateway
           path: ApiGateway
           service_type: node
-          image_name: soumyahegdeh/apigateway
+          image_name: soumyahe/apigateway
           app_port: 3000
           container_port: 3000
           health_path: /health
@@ -144,7 +144,7 @@ jobs:
         - service: QuoteService
           path: QuoteService
           service_type: python
-          image_name: soumyahegdeh/quoteservice
+          image_name: soumyahe/quoteservice
           app_port: 5000
           container_port: 5000
           health_path: /health
@@ -152,7 +152,7 @@ jobs:
         - service: FrontendApplication
           path: FrontendApplication
           service_type: node
-          image_name: soumyahegdeh/frontendapplication
+          image_name: soumyahe/frontendapplication
           app_port: 80
           container_port: 80
           health_path: /
