@@ -129,107 +129,132 @@ jobs:
     needs: code_security
     permissions:
      contents: read
-     security-events: write 
+     security-events: write
     strategy:
-       matrix:
-         include:
-          - service: ApiGateway
-            path: ApiGateway
-            service_type: node
-            image_name: soumyahegdeh/api-gateway
-            app_port: 3000
-            container_port: 3000
-            health_path: /health
-          - service: QuoteService
-            path: QuoteService
-            service_type: python
-            image_name: soumyahegdeh/quote-service
-            app_port: 5000
-            container_port: 5000
-            health_path: /health
-          - service: FrontendApplication
-            path: FrontendApplication
-            service_type: node
-            image_name: soumyahegdeh/frontend-application
-            app_port: 80
-            container_port: 80
-            health_path: /
+      matrix:
+       include:
+        - service: ApiGateway
+          path: ApiGateway
+          service_type: node
+          image_name: soumyahegdeh/api-gateway
+          app_port: 3000
+          container_port: 3000
+          health_path: /health
+
+        - service: QuoteService
+          path: QuoteService
+          service_type: python
+          image_name: soumyahegdeh/quote-service
+          app_port: 5000
+          container_port: 5000
+          health_path: /health
+
+        - service: FrontendApplication
+          path: FrontendApplication
+          service_type: node
+          image_name: soumyahegdeh/frontend-application
+          app_port: 80
+          container_port: 80
+          health_path: /
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - uses: docker/login-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+         username: ${{ secrets.DOCKER_USERNAME }}
+         password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build & Push
+    # Step 1 - Build locally, don't push yet
+      - name: Build Image
         uses: docker/build-push-action@v5
         with:
-          context: ${{ matrix.path }}
-          file: ${{ matrix.path }}/app.dockerfile
-          push: false          # ← don't push yet
-          load: true 
-          tags: ${{ matrix.image_name }}:${{ github.sha }}
+         context: ${{ matrix.path }}
+         file: ${{ matrix.path }}/app.dockerfile
+         push: false
+         load: true
+         tags: ${{ matrix.image_name }}:${{ github.sha }}
+         cache-from: type=gha
+         cache-to: type=gha,mode=max
 
+    # Step 2 - Save image to tar file
+      - name: Save Image to tar
+        run: |
+          docker save ${{ matrix.image_name }}:${{ github.sha }} \
+          -o ${{ github.workspace }}/${{ matrix.service }}.tar
+          ls -lh ${{ github.workspace }}/${{ matrix.service }}.tar
 
+    # Step 3 - Install Trivy binary directly
+      - name: Install Trivy
+        run: |
+           wget -qO- https://github.com/aquasecurity/trivy/releases/download/v0.61.0/trivy_0.61.0_Linux-64bit.tar.gz | tar -xz
+           sudo mv trivy /usr/local/bin/
+           trivy --version
+
+    # Step 4 - Human readable table (visible in Actions log)
       - name: Trivy vulnerability summary
         run: |
-          docker run --rm \
-              -v /var/run/docker.sock:/var/run/docker.sock \
-              -v ${{ github.workspace }}:/workspace \
-               aquasec/trivy image \
-               --input /workspace/${{ matrix.service }}.tar \
-               --severity HIGH,CRITICAL \
-               --format table
-          continue-on-error: true
+          trivy image \
+            --input ${{ github.workspace }}/${{ matrix.service }}.tar \
+            --severity HIGH,CRITICAL \
+            --format table
+        continue-on-error: true
 
+    # Step 5 - SARIF format for GitHub Security tab
       - name: Scan Image with Trivy
         id: trivy-scan
-        uses: aquasecurity/trivy-action@v0.20.0   # ← pinned version
-        with:
-          input: ${{ matrix.service }}.tar
-          format: sarif
-          output: trivy-${{ matrix.service }}.sarif
-          exit-code: 1                           # ← fail if vulnerabilities found
-          severity: HIGH,CRITICAL
-        continue-on-error: true 
+        run: |
+          trivy image \
+            --input ${{ github.workspace }}/${{ matrix.service }}.tar \
+            --severity HIGH,CRITICAL \
+            --format sarif \
+            --output ${{ github.workspace }}/trivy-${{ matrix.service }}.sarif \
+            --exit-code 1
+        continue-on-error: true
+
+    # Step 6 - Upload SARIF to GitHub Security tab
       - name: Upload Trivy SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: trivy-${{ matrix.service }}.sarif
+          sarif_file: ${{ github.workspace }}/trivy-${{ matrix.service }}.sarif
           category: trivy-${{ matrix.service }}
 
-      - name: Check Trivy scan result
+    # Step 7 - Fail pipeline if vulnerabilities found
+      - name: Check Trivy result
         if: steps.trivy-scan.outcome == 'failure'
         run: |
-           echo "Trivy found HIGH/CRITICAL vulnerabilities!"
-           exit 1
+          echo "❌ Trivy found HIGH/CRITICAL vulnerabilities in ${{ matrix.service }}!"
+          echo "Fix the vulnerabilities before pushing to Docker Hub"
+          exit 1
 
+    # Step 8 - Smoke test
       - name: Smoke Test
         run: |
-          docker run -d -p ${{ matrix.app_port }}:${{ matrix.container_port }} --name test \
-          ${{ matrix.image_name }}:${{ github.sha }}
+          docker run -d \
+            -p ${{ matrix.app_port }}:${{ matrix.container_port }} \
+            --name test_${{ matrix.service }} \
+            ${{ matrix.image_name }}:${{ github.sha }}
 
           sleep 10
 
-          
           docker ps | grep test_${{ matrix.service }}
 
-      
           curl --fail \
              --retry 3 \
              --retry-delay 5 \
              http://localhost:${{ matrix.app_port }}${{ matrix.health_path }}
 
-       
           docker stop test_${{ matrix.service }}
           docker rm test_${{ matrix.service }}
 
-      - name: Push Image (if scan passed)
+    # Step 9 - Push ONLY if everything passed
+      - name: Push Image to Docker Hub
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.path }}
@@ -238,5 +263,5 @@ jobs:
           tags: |
             ${{ matrix.image_name }}:${{ github.sha }}
             ${{ matrix.image_name }}:latest
-          cache-from: type=gha    # ← uses cached layers, no rebuild
+          cache-from: type=gha
           cache-to: type=gha,mode=max
