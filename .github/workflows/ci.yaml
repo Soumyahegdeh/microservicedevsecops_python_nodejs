@@ -121,3 +121,100 @@ jobs:
             fi
           fi
 
+# =========================
+# 2. CONTAINER SECURITY
+# =========================
+  container_security:
+    runs-on: ubuntu-latest
+    needs: code_security
+    strategy:
+       matrix:
+         include:
+          - service: ApiGateway
+            path: ApiGateway
+            service_type: node
+            image_name: soumyahegdeh/api-gateway
+            app_port: 3000
+            container_port: 3000
+            health_path: /health
+          - service: QuoteService
+            path: QuoteService
+            service_type: python
+            image_name: soumyahegdeh/quote-service
+            app_port: 5000
+            container_port: 5000
+            health_path: /health
+          - service: FrontendApplication
+            path: FrontendApplication
+            service_type: node
+            image_name: soumyahegdeh/frontend-application
+            app_port: 80
+            container_port: 80
+            health_path: /
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build & Push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.path }}
+          file: ${{ matrix.path }}/app.dockerfile
+          push: false          # ← don't push yet
+          load: true 
+          tags: ${{ matrix.image_name }}:${{ github.sha }}
+
+      - name: Scan Image with Trivy
+        uses: aquasecurity/trivy-action@0.20.0   # ← pinned version
+        with:
+          image-ref: ${{ matrix.image_name }}:${{ github.sha }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          exit-code: 1                           # ← fail if vulnerabilities found
+          severity: HIGH,CRITICAL
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
+
+      - name: Smoke Test
+        run: |
+          docker run -d -p ${{ matrix.app_port }}:${{ matrix.container_port }} --name test \
+          ${{ matrix.image_name }}:${{ github.sha }}
+
+          sleep 10
+
+          
+          docker ps | grep test_${{ matrix.service }}
+
+      
+          curl --fail \
+             --retry 3 \
+             --retry-delay 5 \
+             http://localhost:${{ matrix.app_port }}${{ matrix.health_path }}
+
+       
+          docker stop test_${{ matrix.service }}
+          docker rm test_${{ matrix.service }}
+
+      - name: Push Image (if scan passed)
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.path }}
+          file: ${{ matrix.path }}/app.dockerfile
+          push: true
+          tags: |
+            ${{ matrix.image_name }}:${{ github.sha }}
+            ${{ matrix.image_name }}:latest
+          cache-from: type=gha    # ← uses cached layers, no rebuild
+          cache-to: type=gha,mode=max

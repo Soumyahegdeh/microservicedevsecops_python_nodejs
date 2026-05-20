@@ -37,3 +37,7 @@ if __name__ == '__main__':
     loadQuotes() # load quotes 
     app.run(host='0.0.0.0', port=5000, debug=True) # run application
     
+# Add this route to app.py
+@app.route("/health")
+def health():
+    return jsonify({"status": "healthy"}), 200
