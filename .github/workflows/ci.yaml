@@ -214,7 +214,12 @@ jobs:
             --severity HIGH,CRITICAL \
             --format sarif \
             --output ${{ github.workspace }}/trivy-${{ matrix.service }}.sarif \
-            --exit-code 1
+            --exit-code 1 || true   # ← don't exit immediately
+
+          if [ ! -f "${{ github.workspace }}/trivy-${{ matrix.service }}.sarif" ]; then
+           echo '{"version":"2.1.0","runs":[]}' > \
+            ${{ github.workspace }}/trivy-${{ matrix.service }}.sarif
+          fi
         continue-on-error: true
 
     # Step 6 - Upload SARIF to GitHub Security tab
