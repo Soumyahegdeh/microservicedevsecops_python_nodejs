@@ -3,6 +3,11 @@ ApiGateway/index.js
 
 # HTML integrity - CDN links, acceptable for this project
 FrontendApplication/src/index.html
+FrontendApplication/dist/index.html 
 
 # Nginx header - intentional config
 FrontendApplication/vhost.conf
+
+# Flask host=0.0.0.0 - required for Docker container networking
+# Without 0.0.0.0 the app is unreachable inside container
+QuoteService/main.py
