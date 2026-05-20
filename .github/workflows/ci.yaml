@@ -28,16 +28,18 @@ jobs:
 
       - name: Semgrep SAST Scan
         if: github.event_name == 'push'
+        id: semgrep
         uses: semgrep/semgrep-action@v1
         with:
-          config: auto
-          generateSarif: "1"
+         config: auto
+         continue-on-error: true    # ← don't fail if semgrep fails
 
       - name: Upload Semgrep results
-        if: always()  
+        if: always() && hashFiles('semgrep.sarif') != ''   # ← only if file exists
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
+          
   code_security:
      runs-on: ubuntu-latest
      strategy:

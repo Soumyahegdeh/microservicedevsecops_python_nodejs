@@ -1,0 +1,11 @@
+[allowlist]
+  description = "Allowlist for known false positives"
+  regexes = [
+    '''[0-9a-f]{40}''',                                    # ← git SHA tags
+    '''[a-z]+/[a-z]+:[0-9a-f]{40}'''                      # ← image:sha format
+  ]
+  paths = [
+    '''k8s/.*\.yaml''',
+    '''k8s/.*\.yml''',
+    '''projects/gitops/k8s/.*\.yml'''
+  ]
