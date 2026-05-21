@@ -18,7 +18,7 @@ spec:
         - name: apigateway
           securityContext:
             allowPrivilegeEscalation: false
-          image: soumyahe/apigateway:15ea9057573c7bb06246ef322ef57f3d1b59e616
+          image: soumyahe/apigateway:d9c73b4f30eb48f9225489e71252b36abb73fc54
           ports:
             - containerPort: 3000
           env:

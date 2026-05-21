@@ -18,6 +18,6 @@ spec:
         - name: frontend
           securityContext:
             allowPrivilegeEscalation: false 
-          image: soumyahe/frontendapplication:3b459f8f6cb287e9e0424c9ac5caa43be395293d
+          image: soumyahe/frontendapplication:d9c73b4f30eb48f9225489e71252b36abb73fc54
           ports:
             - containerPort: 80
