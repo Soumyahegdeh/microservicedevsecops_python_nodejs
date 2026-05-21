@@ -252,7 +252,11 @@ jobs:
 
           sleep 10
 
-          docker ps | grep test_${{ matrix.service }}
+          docker logs test_${{ matrix.service }}
+
+    
+          docker ps -a | grep test_${{ matrix.service }}
+
 
           curl --fail \
              --retry 3 \
